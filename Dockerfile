@@ -19,15 +19,15 @@ USER app
 # otherwise download the latest version
 RUN  if [ -n "${MODERNE_AGENT_VERSION}" ]; then \
           echo "Downloading version: ${MODERNE_AGENT_VERSION}"; \
-          curl -s --request GET --url "https://repo1.maven.org/maven2/io/moderne/moderne-agent/${MODERNE_AGENT_VERSION}/moderne-agent-${MODERNE_AGENT_VERSION}.jar" --output agent.jar; \
+          curl -s --insecure --request GET --url "https://repo1.maven.org/maven2/io/moderne/moderne-agent/${MODERNE_AGENT_VERSION}/moderne-agent-${MODERNE_AGENT_VERSION}.jar" --output agent.jar; \
      else \
-          LATEST_VERSION=$(curl -s --request GET --url "https://repo1.maven.org/maven2/io/moderne/moderne-agent/maven-metadata.xml" | xmllint --xpath 'string(/metadata/versioning/latest)' -); \
+          LATEST_VERSION=$(curl -s --insecure --request GET --url "https://repo1.maven.org/maven2/io/moderne/moderne-agent/maven-metadata.xml" | xmllint --xpath 'string(/metadata/versioning/latest)' -); \
           if [ -z "${LATEST_VERSION}" ]; then \
                echo "Failed to retrieve the latest version"; \
                exit 1; \
           fi; \
           echo "Downloading latest version: ${LATEST_VERSION}"; \
-          curl -s --request GET --url "https://repo1.maven.org/maven2/io/moderne/moderne-agent/${LATEST_VERSION}/moderne-agent-${LATEST_VERSION}.jar" --output agent.jar; \
+          curl -s --insecure --request GET --url "https://repo1.maven.org/maven2/io/moderne/moderne-agent/${LATEST_VERSION}/moderne-agent-${LATEST_VERSION}.jar" --output agent.jar; \
      fi
 
 ENTRYPOINT ["java"]
