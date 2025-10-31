@@ -135,13 +135,9 @@ A pre-built Grafana dashboard is available in the [`grafana/`](grafana/) directo
 2. When prompted, select your Prometheus datasource for the `DS_PROMETHEUS` variable
 3. View metrics for gateway connectivity, system resources, JVM, LST operations, and more
 
-## Remote repos.csv loading
+## Organizational hierarchy configuration (repos.csv)
 
-Set the environment variable to load repos.csv from an HTTP(S) endpoint:
-
-```
-MODERNE_AGENT_ORGANIZATION_REPOSCSV=https://example.com/repos.csv
-```
+The agent can be configured to load the organisational hierarchy from a repos.csv file. This can be the same file as used in mass-ingest.
 
 ### repos.csv format
 
@@ -150,8 +146,39 @@ cloneUrl,branch,origin,path,org1,org2,org3
 https://github.com/org/repo,main,github.com,org/repo,Team,Department,ALL
 ```
 
-Required columns: `cloneUrl`, `branch`, `origin`, `path`
-Optional columns: `org1`, `org2`, `org3` (organizational hierarchy, left is child of right)
+**Required columns:**
+- `cloneUrl` - Git clone URL for the repository
+- `branch` - Branch to analyze
+- `origin` - Source control origin (e.g., `github.com`)
+- `path` - Repository path (e.g., `org/repo`)
+
+**Optional columns:**
+- `org1`, `org2` ... `orgN` - Organizational hierarchy of arbitrary depth (left is child of right)
+
+### Loading from remote URL
+
+Set the environment variable to load repos.csv from an HTTP(S) endpoint:
+
+```bash
+MODERNE_AGENT_ORGANIZATION_REPOSCSV=https://example.com/repos.csv
+```
+
+Add to your `.env` file or pass via `-e` flag when running the container.
+
+### Loading from local file
+
+Mount a local repos.csv file into the container:
+
+```bash
+docker run -d \
+  -p 8080:8080 \
+  --env-file .env \
+  -v /path/to/your/repos.csv:/app/repos.csv \
+  -e MODERNE_AGENT_ORGANIZATION_REPOSCSV=file:///app/repos.csv \
+  moderne-agent
+```
+
+This mounts your local file at `/app/repos.csv` inside the container and configures the agent to read from it.
 
 
 ## Scaling
@@ -241,7 +268,7 @@ The `Dockerfile.minimal` demonstrates the absolute minimum requirements for runn
 
 - **CPU**: 2 cores minimum, 4+ recommended
 - **Memory**: 8GB minimum
-- **Storage**: 10GB minimum for LST caching
+- **Storage**: 10GB minimum for LST caching (ephemeral)
 - **Network**: Outbound HTTPS access to Moderne API endpoint
 - **Java**: 17+ (provided in Docker image)
 
