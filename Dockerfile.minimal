@@ -1,0 +1,19 @@
+FROM eclipse-temurin:17-jdk
+
+RUN groupadd -r app && useradd --no-log-init -r -m -g app app
+
+WORKDIR /app
+
+COPY --chown=app:app moderne-agent-*.jar /app/agent.jar
+
+USER app
+
+EXPOSE 8080
+
+ENTRYPOINT ["java"]
+CMD ["-XX:-OmitStackTraceInFastThrow", \
+     "-XX:MaxRAMPercentage=65.0", \
+     "-XX:MaxDirectMemorySize=2G", \
+     "-XX:+HeapDumpOnOutOfMemoryError", \
+     "-XX:+UseStringDeduplication", \
+     "-jar", "/app/agent.jar"]

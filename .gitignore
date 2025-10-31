@@ -1,0 +1,19 @@
+# Environment files with secrets
+.env
+
+# Agent JAR files
+moderne-agent-*.jar
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
