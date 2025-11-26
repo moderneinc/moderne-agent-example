@@ -12,7 +12,7 @@ The Moderne Agent is a service that runs in your infrastructure to:
 ## Prerequisites
 
 1. **Moderne tenant access** - Contact Moderne to obtain:
-   - API Gateway URI (e.g., `https://api.tenant.moderne.io`)
+   - API Gateway URI (e.g., `https://api.tenant.moderne.io/rsocket`)
    - Agent authentication token
 
 2. **Encryption key** - Generate a 256-bit AES key:
@@ -215,6 +215,10 @@ docker run -d -p 8081:8080 --env-file .env -e MODERNE_AGENT_NICKNAME=agent-2 mod
 - Check `MODERNE_AGENT_ARTIFACTINDEXINTERVALSECONDS` frequency
 - Verify LSTs are published to the configured repository
 
+### Debugging connectivity issues
+
+For debugging connection issues, you can add `SKIPVALIDATECONNECTIVITY=true` to skip startup validation for Artifactory and HTTP tool connections (e.g., `MODERNE_AGENT_ARTIFACTORY_0_SKIPVALIDATECONNECTIVITY=true`).
+
 ## Minimum Docker image
 
 The `Dockerfile.minimal` demonstrates the absolute minimum requirements for running the agent. The main `Dockerfile` includes additional tooling (`libxml2-utils`, automatic JAR download) that simplifies production deployments but aren't strictly required. This minimal version is useful for understanding what's essential vs optional for production hardening.
@@ -237,7 +241,7 @@ The `Dockerfile.minimal` demonstrates the absolute minimum requirements for runn
    ```bash
    docker run -d \
      -p 8080:8080 \
-     -e MODERNE_AGENT_APIGATEWAYRSOCKETURI=https://api.<tenant>.moderne.io \
+     -e MODERNE_AGENT_APIGATEWAYRSOCKETURI=https://api.<tenant>.moderne.io/rsocket \
      -e MODERNE_AGENT_TOKEN=<your-agent-token> \
      -e MODERNE_AGENT_CRYPTO_SYMMETRICKEY=<your-256-bit-hex-key> \
      -e MODERNE_AGENT_NICKNAME=my-agent \
