@@ -1,8 +1,13 @@
-# Environment files with secrets
-.env
+# Configuration with secrets
+application.yml
 
-# Agent JAR files
-moderne-agent-*.jar
+# Legacy / local env files (canonical config is application.yml, but these
+# patterns are masked defensively in case anyone ever drops one in)
+.env
+.env.*
+
+# Connector JAR files
+connector-*.jar
 
 # macOS
 .DS_Store

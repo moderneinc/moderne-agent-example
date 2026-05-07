@@ -1,0 +1,370 @@
+# Moderne Connector configuration template.
+#
+# Copy to application.yml and customize for your environment. Mount the file
+# into the container at /app/application.yml (or set SPRING_CONFIG_LOCATION
+# to point at it) and the connector will pick it up at startup.
+#
+# Spring Boot relaxed binding: kebab-case keys here are equivalent to the
+# camelCase / SCREAMING_SNAKE_CASE forms used elsewhere in Moderne docs.
+
+moderne:
+
+  # ==========================================================================
+  # CORE CONNECTOR CONFIGURATION (Required)
+  # ==========================================================================
+  connector:
+    # URI for the connector's RSocket tunnel to the Moderne API gateway.
+    # Format: https://api.<tenant>.moderne.io/connector
+    # (Legacy /rsocket paths are auto-rewritten to /connector at startup.)
+    api-gateway-rsocket-uri: https://api.<tenant>.moderne.io/connector
+
+    # Connector authentication token (provided by Moderne).
+    token: <your-connector-token>
+
+    # 256-bit AES symmetric key (hex) used to encrypt LSTs in transit/at rest.
+    # Generate with: openssl enc -aes-256-cbc -k secret -P -md sha256
+    # Use the value after "key=". Keep stable: changing it makes previously
+    # encrypted LSTs unreadable.
+    crypto:
+      symmetric-key: <your-256-bit-hex-key>
+
+    # Human-readable identifier for this connector instance (shown in the UI
+    # and metrics). Use lowercase with hyphens.
+    nickname: my-connector
+
+    # ========================================================================
+    # HTTP PROXY FOR API GATEWAY (Optional)
+    # ========================================================================
+    # Outbound proxy used by the RSocket tunnel. Both host and port required.
+    #api-gateway:
+    #  proxy:
+    #    host: proxy.mycompany.com
+    #    port: 8080
+
+    # ========================================================================
+    # ORGANIZATION POLLING (Optional)
+    # ========================================================================
+    # Where the connector discovers and downloads published LST artifacts.
+    organization:
+      # LST discovery mode: AUTO (infer), LOCK (use CSV publish URIs),
+      # POLLING (query repos).
+      #mode: AUTO
+
+      # How often to re-fetch and re-enrich repos.csv (ISO-8601 duration).
+      #interval: PT10M
+
+      # Concurrent LST download/encrypt/upload operations across all sources.
+      # Default: max(4, available CPU cores).
+      #download-parallelism: 8
+
+      poll:
+        # ====================================================================
+        # ARTIFACTORY POLLING (Optional - recommended for LST storage)
+        # ====================================================================
+        #artifactory:
+        #  - uri: https://artifactory.mycompany.com/artifactory
+        #
+        #    # Use EITHER username/password OR bearer-token.
+        #    username: <artifactory-username>
+        #    password: <artifactory-password>
+        #    #bearer-token: <artifactory-token>
+        #
+        #    # AQL filter expressions that select LST artifacts.
+        #    lst-query-filters:
+        #      - '"repo":{"$match":"moderne-lsts"}'
+        #      - '"name":{"$match":"*-ast.jar"}'
+        #
+        #    # How often to re-poll (ISO-8601 duration; default PT10M).
+        #    interval: PT10M
+        #
+        #    # Per-source download concurrency override (defaults to global).
+        #    download-parallelism: 4
+        #
+        #    # Disable cert validation (only for self-signed certs / dev).
+        #    skip-ssl: false
+        #
+        #    # Skip startup connectivity validation (useful when debugging).
+        #    skip-validate-connectivity: false
+
+        # ====================================================================
+        # MAVEN POLLING (Optional - alt to Artifactory; also dependency source)
+        # ====================================================================
+        #maven:
+        #  - uri: https://artifactory.mycompany.com/artifactory/my-repository
+        #    username: <maven-username>
+        #    password: <maven-password>
+        #
+        #    # Local cache directory (defaults to ~/.moderne-maven).
+        #    local-repository: /app/.moderne-maven/maven0
+        #
+        #    # Include releases / snapshots (default: true).
+        #    releases: true
+        #    snapshots: true
+        #
+        #    # Poll interval (ISO-8601 duration; default PT10M).
+        #    interval: PT10M
+        #
+        #    skip-ssl: false
+        #    skip-validate-connectivity: false
+
+    # ========================================================================
+    # POM CACHE (Optional - improves recipe execution performance)
+    # ========================================================================
+    #recipe:
+    #  pom-cache:
+    #    # Cache backend: IN_MEMORY (default) or REDIS.
+    #    type: IN_MEMORY
+    #
+    #    # TTLs (ISO-8601 durations).
+    #    pom-ttl: PT1H
+    #    metadata-ttl: PT10M
+    #
+    #    # Redis backend (only used when type=REDIS).
+    #    redis:
+    #      host: redis.mycompany.com
+    #      port: 6379
+    #      username:
+    #      password:
+    #      ssl: false
+    #      database: 0
+
+    # ========================================================================
+    # GENERIC HTTP TOOLS (Optional)
+    # ========================================================================
+    # Pre-authenticated outbound HTTP endpoints exposed to recipes.
+    #http-tool:
+    #  - uri: https://internal-tool.mycompany.com
+    #    username:
+    #    password:
+    #    #bearer-token:
+    #    #proxy:
+    #    #  host:
+    #    #  port:
+    #    skip-ssl: false
+    #    skip-validate-connectivity: false
+
+  # ==========================================================================
+  # SCM PROVIDERS (Optional)
+  # ==========================================================================
+  scm:
+    # GitHub (one or more instances).
+    #github:
+    #  - uri: https://github.com
+    #    oauth:
+    #      client-id: <github-oauth-client-id>
+    #      client-secret: <github-oauth-client-secret>
+    #      include-private-repos: true
+    #    # Restrict to specific organizations.
+    #    allowable-organizations:
+    #      - my-org
+    #      - another-org
+    #    #proxy:
+    #    #  host: proxy.mycompany.com
+    #    #  port: 8080
+    #    skip-ssl: false
+    #    skip-validate-connectivity: false
+
+    # GitLab.
+    #gitlab:
+    #  - uri: https://gitlab.com
+    #    oauth:
+    #      client-id: <gitlab-oauth-client-id>
+    #      client-secret: <gitlab-oauth-client-secret>
+    #    skip-ssl: false
+    #    skip-validate-connectivity: false
+
+    # Bitbucket Data Center.
+    #bitbucket-datacenter:
+    #  - uri: https://bitbucket.mycompany.com
+    #    # OAuth 2.0 (preferred). Mutually exclusive with private-key.
+    #    oauth:
+    #      key: <bitbucket-oauth-key>
+    #      secret: <bitbucket-oauth-secret>
+    #    # OAuth 1.0 (legacy application links).
+    #    #private-key: |
+    #    #  -----BEGIN RSA PRIVATE KEY-----
+    #    #  ...
+    #    #  -----END RSA PRIVATE KEY-----
+    #    skip-ssl: false
+    #    skip-validate-connectivity: false
+
+    # Bitbucket Cloud (single instance, not a list).
+    #bitbucket-cloud:
+    #  oauth:
+    #    key: <bitbucket-cloud-oauth-key>
+    #    secret: <bitbucket-cloud-oauth-secret>
+    #  skip-validate-connectivity: false
+
+    # Azure DevOps.
+    #azure-devops:
+    #  - oauth:
+    #      client-id: <azure-oauth-client-id>
+    #      client-secret: <azure-oauth-client-secret>
+    #      tenant-id: <azure-tenant-id>
+    #    skip-validate-connectivity: false
+
+    # Restrict commit strategies offered to users.
+    # Options: Direct, Branch, Fork, PullRequest, ForkAndPullRequest, None
+    #default-commit-options:
+    #  - PullRequest
+    #  - ForkAndPullRequest
+
+  # ==========================================================================
+  # ORGANIZATION SOURCES (Optional - repos.csv hierarchy)
+  # ==========================================================================
+  # The connector loads its repository list from one or more sources. Mix and
+  # match HTTP, S3, and file-based sources. See README for repos.csv format.
+  #organization:
+  #  sources:
+  #    # HTTP-hosted repos.csv.
+  #    http:
+  #      - uri: https://example.com/repos.csv
+  #        username:
+  #        password:
+  #        #token:
+  #        #proxy:
+  #        #  host:
+  #        #  port:
+  #
+  #    # S3-hosted repos.csv (or repos-lock.csv).
+  #    s3:
+  #      - uri: s3://my-bucket/path/repos-lock.csv
+  #        region: us-west-2
+  #        #endpoint-url:
+  #        #access-key:
+  #        #secret-key:
+  #        #profile:
+  #
+  #    # File-mounted repos.csv (path relative to the connector's storage dir).
+  #    file:
+  #      - path: repos.csv
+
+  # ==========================================================================
+  # RECIPE MARKETPLACE (Optional)
+  # ==========================================================================
+  # Where the connector pulls recipe artifacts from. Resolves customer-published
+  # recipes here in addition to Moderne's catalog.
+  #recipe:
+  #  marketplace:
+  #    repositories:
+  #      maven:
+  #        - uri: https://artifactory.mycompany.com/artifactory/recipes
+  #          username:
+  #          password:
+  #          releases: true
+  #          snapshots: true
+  #          skip-ssl: false
+  #
+  #      npm:
+  #        - uri: https://npm.mycompany.com/
+  #          #bearer-token:
+  #
+  #      nuget:
+  #        - uri: https://nuget.mycompany.com/v3/index.json
+  #          #bearer-token:
+  #
+  #      pypi:
+  #        - uri: https://pypi.mycompany.com/simple
+  #          username:
+  #          password:
+
+  # ==========================================================================
+  # CHANGELOG / WEBHOOKS (Optional)
+  # ==========================================================================
+  # Webhook integrations that surface recipe-driven PRs and pipeline status
+  # back into the Moderne UI.
+  #changelog:
+  #  github:
+  #    app-id:
+  #    private-key: file:/run/secrets/github-app-private-key.pem
+  #    webhook-secret:
+  #    origins:
+  #      - github.com
+  #
+  #  gitlab:
+  #    token:
+  #    origins:
+  #      - gitlab.com
+  #
+  #  bitbucket:
+  #    token:
+  #    origins:
+  #      - bitbucket.mycompany.com
+  #
+  #  bitbucket-cloud:
+  #    token:
+  #    origins:
+  #      - bitbucket.org
+  #
+  #  azure-dev-ops:
+  #    token:
+  #    origins:
+  #      - dev.azure.com
+
+  # ==========================================================================
+  # MODDY (LLM) INTEGRATION (Optional)
+  # ==========================================================================
+  # Configure one or more LLM providers to enable Moddy AI features.
+  #moddy:
+  #  # Restrict Moddy features to admin users only.
+  #  admin-only: false
+  #
+  #  # OpenAI (or any OpenAI-compatible API).
+  #  openai:
+  #    api-key:
+  #    model: gpt-4
+  #    uri: https://api.openai.com/v1
+  #    #proxy:
+  #    #  host:
+  #    #  port:
+  #
+  #  # Anthropic.
+  #  anthropic:
+  #    api-key:
+  #    model: claude-sonnet-4-6
+  #    uri: https://api.anthropic.com/v1
+  #
+  #  # Google Gemini.
+  #  gemini:
+  #    api-key:
+  #    model: gemini-pro
+  #
+  #  # Mistral.
+  #  mistral:
+  #    api-key:
+  #    model: mistral-large
+
+  # ==========================================================================
+  # AUTHORIZATION (Optional)
+  # ==========================================================================
+  #authorization:
+  #  access-tokens:
+  #    # Maximum personal-access-token lifetime in days (blank = unlimited).
+  #    max-expiry-days: 90
+
+  # ==========================================================================
+  # UI CUSTOMIZATION (Optional)
+  # ==========================================================================
+  #ui:
+  #  # Up to 3 additional help links shown in the UI.
+  #  more-help:
+  #    - label: Internal Wiki
+  #      uri: https://wiki.mycompany.com/moderne
+  #
+  #  # CLI download instructions link.
+  #  cli-download-instructions:
+  #    label: Download CLI
+  #    uri: https://wiki.mycompany.com/moderne-cli
+  #
+  #  # Login page customization.
+  #  #login-text:
+  #  #login-links:
+  #  #  - label:
+  #  #    uri:
+
+# ============================================================================
+# LOGGING (Optional)
+# ============================================================================
+#logging:
+#  level:
+#    io.moderne.connector: DEBUG

@@ -1,10 +1,10 @@
-FROM eclipse-temurin:17-jdk
+FROM eclipse-temurin:21-jdk
 
 RUN groupadd -r app && useradd --no-log-init -r -m -g app app
 
 WORKDIR /app
 
-COPY --chown=app:app moderne-agent-*.jar /app/agent.jar
+COPY --chown=app:app connector-*.jar /app/connector.jar
 
 USER app
 
@@ -15,5 +15,6 @@ CMD ["-XX:-OmitStackTraceInFastThrow", \
      "-XX:MaxRAMPercentage=65.0", \
      "-XX:MaxDirectMemorySize=2G", \
      "-XX:+HeapDumpOnOutOfMemoryError", \
+     "-XX:+ExitOnOutOfMemoryError", \
      "-XX:+UseStringDeduplication", \
-     "-jar", "/app/agent.jar"]
+     "-jar", "/app/connector.jar"]

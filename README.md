@@ -1,79 +1,93 @@
-# Moderne Agent Example
+# Moderne Connector Example
 
-Example configurations for deploying the [Moderne Agent](https://docs.moderne.io/administrator-documentation/moderne-platform/how-to-guides/agent-configuration/agent-configuration), which connects your development infrastructure to the Moderne Platform.
+Example configurations for deploying the [Moderne Connector](https://docs.moderne.io/administrator-documentation/moderne-platform/how-to-guides/connector-configuration/connector-configuration), which bridges your private network with the Moderne SaaS platform.
 
-## What is the Moderne Agent?
+## What is the Moderne Connector?
 
-The Moderne Agent is a service that runs in your infrastructure to:
-- Connect your source code repositories (GitHub, GitLab, Bitbucket, Azure DevOps) to Moderne
-- Serve Lossless Semantic Trees (LSTs) from your artifact repositories (Artifactory, Maven)
-- Enable secure access to your code without sending source code to Moderne's SaaS
+The Moderne Connector is a Spring Boot service that runs in your infrastructure to:
+
+- Connect your source code repositories (GitHub, GitLab, Bitbucket, Azure DevOps) to the Moderne SaaS
+- Discover and serve Lossless Semantic Trees (LSTs) from your artifact repositories (Artifactory, Maven)
+- Enable secure, AES-encrypted access to your code without sending source through Moderne
+- Resolve customer-published recipes from your private recipe marketplace
+- Forward webhook events (PR status, build status) and Moddy LLM traffic through a single outbound RSocket tunnel
+
+The connector is the successor to the legacy Moderne Agent. It uses a hierarchical configuration model (`moderne.connector.*`, `moderne.scm.*`, `moderne.organization.*`, `moderne.recipe.*`) and migrates legacy `moderne.agent.*` properties automatically on startup.
 
 ## Prerequisites
 
-1. **Moderne tenant access** - Contact Moderne to obtain:
-   - API Gateway URI (e.g., `https://api.tenant.moderne.io/rsocket`)
-   - Agent authentication token
+1. **Moderne tenant access** — contact Moderne to obtain:
+   - API gateway URI (e.g. `https://api.<tenant>.moderne.io/connector`)
+   - Connector authentication token
 
-2. **Encryption key** - Generate a 256-bit AES key:
+2. **Encryption key** — generate a 256-bit AES key:
    ```bash
    openssl enc -aes-256-cbc -k secret -P -md sha256
    ```
-   Use the value after `key=` for `MODERNE_AGENT_CRYPTO_SYMMETRICKEY`
+   Use the value after `key=` for `moderne.connector.crypto.symmetric-key`.
 
-   **Important:** Keep this key stable. Changing it will make LSTs encrypted with the old key unreadable.
+   **Important:** keep this key stable. Changing it makes LSTs encrypted with the old key unreadable.
 
-The production `Dockerfile` automatically downloads the agent JAR from Maven Central during the build. For a minimal reference implementation, see [Minimum Docker image](#minimum-docker-image).
+The production `Dockerfile` automatically downloads the connector JAR from Maven Central during the build. For a minimal reference implementation, see [Minimum Docker image](#minimum-docker-image).
 
 ## Configuration
 
-### Step 1: Configure Environment Variables
+The connector is configured via a Spring Boot `application.yml` file. The Docker images set `WORKDIR /app`, which is on Spring Boot's default config search path — so any `application.yml` mounted into `/app/application.yml` at runtime is layered on top of the JAR's embedded defaults without any extra launch flags.
 
-Copy the example configuration and customize for your environment:
+### Step 1: Build your application.yml
+
+Copy the template and customize for your environment:
 
 ```bash
-cp .env.example .env
+cp application.yml.example application.yml
 ```
 
-Edit `.env` and configure at minimum:
+Edit `application.yml` and configure at minimum:
 
 **Required:**
-- `MODERNE_AGENT_APIGATEWAYRSOCKETURI` - Your Moderne API endpoint
-- `MODERNE_AGENT_TOKEN` - Authentication token from Moderne
-- `MODERNE_AGENT_CRYPTO_SYMMETRICKEY` - Your generated encryption key
-- `MODERNE_AGENT_NICKNAME` - Identifier for this agent (e.g., `prod-1`)
+- `moderne.connector.api-gateway-rsocket-uri` — your Moderne API endpoint (path `/connector`; legacy `/rsocket` paths are auto-rewritten)
+- `moderne.connector.token` — authentication token from Moderne
+- `moderne.connector.crypto.symmetric-key` — your generated encryption key
+- `moderne.connector.nickname` — identifier for this connector (e.g. `prod-1`)
 
-**Recommended (add at least one):**
+**Recommended (configure at least one of each):**
 
-**SCM Integration** - Configure OAuth for your source control:
-- GitHub: `MODERNE_AGENT_GITHUB_*` variables
-- GitLab: `MODERNE_AGENT_GITLAB_*` variables
-- Bitbucket: `MODERNE_AGENT_BITBUCKET_*` variables
-- Azure DevOps: `MODERNE_AGENT_AZURE_*` variables
+**SCM integration** — OAuth for your source control:
+- GitHub: `moderne.scm.github`
+- GitLab: `moderne.scm.gitlab`
+- Bitbucket Data Center: `moderne.scm.bitbucket-datacenter`
+- Bitbucket Cloud: `moderne.scm.bitbucket-cloud`
+- Azure DevOps: `moderne.scm.azure-devops`
 
-**Artifact Repository** - Configure where LSTs are stored:
-- Artifactory: `MODERNE_AGENT_ARTIFACTORY_*` variables (recommended)
-- Maven: `MODERNE_AGENT_MAVEN_*` variables
+**Artifact repository** — where LSTs are stored:
+- Artifactory: `moderne.connector.organization.poll.artifactory` (recommended)
+- Maven: `moderne.connector.organization.poll.maven`
 
-See `.env.example` for all available configuration options with detailed comments.
+See `application.yml.example` for all available options with detailed comments.
 
-### Step 2: Build Docker Image
+### Step 2: Build the Docker image
 
 ```bash
-docker build -t moderne-agent .
+docker build -t moderne-connector .
 ```
 
-### Step 3: Run the Agent
+### Step 3: Run the connector
 
 ```bash
 docker run -d \
   -p 8080:8080 \
-  --env-file .env \
-  --name moderne-agent \
-  moderne-agent
+  -v "$(pwd)/application.yml:/app/application.yml:ro" \
+  --name moderne-connector \
+  moderne-connector
 ```
 
-### Step 4: Verify Agent is Running
+Or use the provided `docker-compose.yml`:
+
+```bash
+docker compose up -d
+```
+
+### Step 4: Verify the connector is running
 
 Check health status:
 ```bash
@@ -96,48 +110,18 @@ All endpoints are available on port `8080`.
 
 ### Health probes
 
-- `GET /actuator/health` - Overall health status
-- `GET /actuator/health/liveness` - Liveness probe
-- `GET /actuator/health/readiness` - Readiness probe
-
-Health probes are enabled by default since `0.238.0`.
+- `GET /actuator/health` — overall health status
+- `GET /actuator/health/liveness` — liveness probe
+- `GET /actuator/health/readiness` — readiness probe
+- `GET /actuator/info` — build info
 
 ### Metrics
 
-- `GET /actuator/prometheus` - Prometheus metrics endpoint
-
-## Monitoring
-
-### Prometheus Metrics
-
-The agent exposes Prometheus-compatible metrics at `/actuator/prometheus`:
-
-```bash
-curl http://localhost:8080/actuator/prometheus
-```
-
-Configure Prometheus to scrape this endpoint:
-
-```yaml
-scrape_configs:
-  - job_name: 'moderne-agent'
-    metrics_path: '/actuator/prometheus'
-    static_configs:
-      - targets: ['<agent-host>:8080']
-```
-
-### Grafana Dashboard
-
-A pre-built Grafana dashboard is available in the [`grafana/`](grafana/) directory.
-
-**To deploy:**
-1. Import `grafana/moderne-agent-dashboard-v1.json` into your Grafana instance
-2. When prompted, select your Prometheus datasource for the `DS_PROMETHEUS` variable
-3. View metrics for gateway connectivity, system resources, JVM, LST operations, and more
+The connector tunnels its metrics back through the RSocket connection to Moderne (no `/actuator/prometheus` endpoint is exposed). Health, throughput, and gateway-connectivity metrics for your connector are visible in your Moderne tenant's monitoring views — no Prometheus scraping required from your side.
 
 ## Organizational hierarchy configuration (repos.csv)
 
-The agent can be configured to load the organisational hierarchy from a repos.csv file. This can be the same file as used in mass-ingest.
+The connector loads the organization hierarchy from one or more repos.csv sources. The same file format is used by mass-ingest and the Moderne CLI.
 
 ### repos.csv format
 
@@ -147,138 +131,210 @@ https://github.com/org/repo,main,github.com,org/repo,Team,Department,ALL
 ```
 
 **Required columns:**
-- `cloneUrl` - Git clone URL for the repository
-- `branch` - Branch to analyze
-- `origin` - Source control origin (e.g., `github.com`)
-- `path` - Repository path (e.g., `org/repo`)
+- `cloneUrl` — Git clone URL for the repository
+- `branch` — branch to analyze
+- `origin` — source control origin (e.g. `github.com`)
+- `path` — repository path (e.g. `org/repo`)
 
 **Optional columns:**
-- `org1`, `org2` ... `orgN` - Organizational hierarchy of arbitrary depth (left is child of right)
+- `org1`, `org2` … `orgN` — organizational hierarchy of arbitrary depth (left is child of right)
 
-### Loading from remote URL
+### Loading from a remote URL
 
-Set the environment variable to load repos.csv from an HTTP(S) endpoint:
-
-```bash
-MODERNE_AGENT_ORGANIZATION_REPOSCSV=https://example.com/repos.csv
+```yaml
+moderne:
+  organization:
+    sources:
+      http:
+        - uri: https://example.com/repos.csv
 ```
 
-Add to your `.env` file or pass via `-e` flag when running the container.
+### Loading from S3
 
-### Loading from local file
+```yaml
+moderne:
+  organization:
+    sources:
+      s3:
+        - uri: s3://my-bucket/path/repos-lock.csv
+          region: us-west-2
+```
 
-Mount a local repos.csv file into the container:
+### Loading from a local file
+
+Mount a local repos.csv into the container and reference it from `application.yml`:
 
 ```bash
 docker run -d \
   -p 8080:8080 \
-  --env-file .env \
-  -v /path/to/your/repos.csv:/app/repos.csv \
-  -e MODERNE_AGENT_ORGANIZATION_REPOSCSV=file:///app/repos.csv \
-  moderne-agent
+  -v "$(pwd)/application.yml:/app/application.yml:ro" \
+  -v /path/to/your/repos.csv:/app/repos.csv:ro \
+  moderne-connector
 ```
 
-This mounts your local file at `/app/repos.csv` inside the container and configures the agent to read from it.
+```yaml
+moderne:
+  organization:
+    sources:
+      file:
+        - path: /app/repos.csv
+```
 
+The provided `docker-compose.yml` already mounts `example-repos.csv` at `/app/repos.csv`; reference that path in `application.yml` to use it.
 
 ## Scaling
 
-Multiple agents can run concurrently for high availability and load distribution. Each agent must have a unique `MODERNE_AGENT_NICKNAME`.
+Multiple connectors can run concurrently for high availability and load distribution. Each connector must have a unique `moderne.connector.nickname` — either set it directly in each instance's `application.yml`, or override at launch via the `MODERNE_CONNECTOR_NICKNAME` env var (Spring Boot's relaxed binding maps env vars onto the same property tree):
 
-Example with Docker:
 ```bash
-docker run -d -p 8080:8080 --env-file .env -e MODERNE_AGENT_NICKNAME=agent-1 moderne-agent
-docker run -d -p 8081:8080 --env-file .env -e MODERNE_AGENT_NICKNAME=agent-2 moderne-agent
+docker run -d -p 8080:8080 \
+  -v "$(pwd)/application.yml:/app/application.yml:ro" \
+  -e MODERNE_CONNECTOR_NICKNAME=connector-1 \
+  moderne-connector
+docker run -d -p 8081:8080 \
+  -v "$(pwd)/application.yml:/app/application.yml:ro" \
+  -e MODERNE_CONNECTOR_NICKNAME=connector-2 \
+  moderne-connector
 ```
 
 ## Troubleshooting
 
-### Agent fails to connect to Moderne
+### Connector fails to connect to Moderne
 
-- Verify `MODERNE_AGENT_APIGATEWAYRSOCKETURI` is correct
-- Check that `MODERNE_AGENT_TOKEN` is valid
-- Ensure network connectivity to Moderne's API endpoint
-- Check agent logs: `docker logs moderne-agent`
+- Verify `moderne.connector.api-gateway-rsocket-uri` is correct (path should end with `/connector`)
+- Check that `moderne.connector.token` is valid
+- Ensure outbound network connectivity to Moderne's API endpoint
+- If behind a proxy, set `moderne.connector.api-gateway.proxy.host` and `moderne.connector.api-gateway.proxy.port`
+- Check connector logs: `docker logs moderne-connector`
 
 ### No repositories visible in Moderne
 
 - Verify SCM OAuth configuration is correct
-- Check that `ALLOWABLE_ORGANIZATIONS`/`ALLOWABLE_GROUPS` includes your org
-- Test SCM connectivity from the agent container
-- Verify OAuth app has appropriate permissions
+- Check that `allowable-organizations` includes your org (where applicable)
+- Test SCM connectivity from inside the connector container
+- Verify the OAuth app has appropriate permissions
 
 ### LSTs not appearing
 
-- Verify artifact repository configuration
-- For Artifactory: Check AQL query filters
-- For Maven: Ensure repository indexing has completed
-- Check `MODERNE_AGENT_ARTIFACTINDEXINTERVALSECONDS` frequency
-- Verify LSTs are published to the configured repository
+- Verify artifact repository configuration (Artifactory or Maven)
+- For Artifactory: check the `lst-query-filters` AQL expressions
+- For Maven: ensure repository indexing has completed
+- Tune polling cadence with `moderne.connector.organization.poll.*.interval`
+- Verify LSTs are actually published to the configured repository
 
 ### Debugging connectivity issues
 
-For debugging connection issues, you can add `SKIPVALIDATECONNECTIVITY=true` to skip startup validation for Artifactory and HTTP tool connections (e.g., `MODERNE_AGENT_ARTIFACTORY_0_SKIPVALIDATECONNECTIVITY=true`).
+Set `skip-validate-connectivity: true` on a specific source (Artifactory, Maven, HTTP tool) to skip the startup connectivity check while you investigate. For example:
+
+```yaml
+moderne:
+  connector:
+    organization:
+      poll:
+        artifactory:
+          - uri: https://artifactory.mycompany.com/artifactory
+            skip-validate-connectivity: true
+```
+
+To enable verbose logging:
+
+```yaml
+logging:
+  level:
+    io.moderne.connector: DEBUG
+```
+
+## Migrating from the Moderne Agent
+
+If you previously ran the Moderne Agent, the connector will automatically translate legacy `moderne.agent.*` properties to their connector equivalents on startup, and write the migrated configuration to `moderne.yml`. Common rewrites:
+
+| Legacy agent property                     | Connector property                                   |
+|-------------------------------------------|------------------------------------------------------|
+| `moderne.agent.api-gateway-rsocket-uri`   | `moderne.connector.api-gateway-rsocket-uri`          |
+| `moderne.agent.token`                     | `moderne.connector.token`                            |
+| `moderne.agent.crypto.symmetric-key`      | `moderne.connector.crypto.symmetric-key`             |
+| `moderne.agent.nickname`                  | `moderne.connector.nickname`                         |
+| `moderne.agent.github[*]`                 | `moderne.scm.github[*]`                              |
+| `moderne.agent.gitlab[*]`                 | `moderne.scm.gitlab[*]`                              |
+| `moderne.agent.bitbucket[*]`              | `moderne.scm.bitbucket-datacenter[*]`                |
+| `moderne.agent.bitbucket-cloud`           | `moderne.scm.bitbucket-cloud`                        |
+| `moderne.agent.azure-dev-ops[*]`          | `moderne.scm.azure-devops[*]`                        |
+| `moderne.agent.artifactory[*]`            | `moderne.connector.organization.poll.artifactory[*]` |
+| `moderne.agent.maven[*]`                  | `moderne.connector.organization.poll.maven[*]`       |
+| `moderne.agent.pypi[*]`                   | `moderne.recipe.marketplace.repositories.pypi[*]`    |
+| `moderne.agent.organization.repos-csv`    | `moderne.organization.sources.http[0].uri`           |
+| `moderne.agent.s3[*]`                     | `moderne.organization.sources.s3[*]`                 |
+| `moderne.agent.http-tool[*]`              | `moderne.connector.http-tool[*]`                     |
+| `moderne.agent.recipe.*`                  | `moderne.connector.recipe.*`                         |
+| `moderne.agent.default-commit-options[*]` | `moderne.scm.default-commit-options[*]`              |
+| `moderne.agent.cli`                       | `moderne.connector.cli`                              |
+| `moderne.agent.ui.*`                      | `moderne.ui.*`                                       |
+| `moderne.agent.personal-access-tokens.*`  | `moderne.authorization.access-tokens.*`              |
+| `moderne.agent.llm.*`                     | `moderne.moddy.<provider>.*`                         |
+
+Field renames applied during migration:
+- `.url` → `.uri`
+- `.ast-query-filters` / `astQueryFilters` → `.lst-query-filters` / `lstqueryfilters`
+- `apiGatewayRsocketUri` ending in `/rsocket` → `/connector`
+
+Properties no longer supported (warned, then ignored): `moderne.agent.organization.devCenter`, `moderne.agent.organization.updateIntervalSeconds`, `moderne.agent.tenantDomain`, `moderne.agent.apiGateway.bearerToken`, `moderne.agent.visualization.useOnlyConfigured`, `moderne.agent.recipe.useOnlyConfigured`.
 
 ## Minimum Docker image
 
-The `Dockerfile.minimal` demonstrates the absolute minimum requirements for running the agent. The main `Dockerfile` includes additional tooling (`libxml2-utils`, automatic JAR download) that simplifies production deployments but aren't strictly required. This minimal version is useful for understanding what's essential vs optional for production hardening.
+`Dockerfile.minimal` demonstrates the absolute minimum requirements for running the connector. The main `Dockerfile` includes additional tooling (`libxml2-utils`, automatic JAR download) that simplifies production deployments but isn't strictly required.
 
 **To use the minimal Dockerfile:**
 
-1. **Manually download the agent JAR** from [Maven Central](https://central.sonatype.com/artifact/io.moderne/moderne-agent):
+1. **Manually download the connector JAR** from [Maven Central](https://central.sonatype.com/artifact/io.moderne/connector):
    ```bash
    # Replace VERSION with the latest version number
-   curl -o moderne-agent-VERSION.jar \
-     https://repo1.maven.org/maven2/io/moderne/moderne-agent/VERSION/moderne-agent-VERSION.jar
+   curl -o connector-VERSION.jar \
+     https://repo1.maven.org/maven2/io/moderne/connector/VERSION/connector-VERSION.jar
    ```
 
-2. **Build**:
+2. **Build:**
    ```bash
-   docker build -f Dockerfile.minimal -t moderne-agent:minimal .
+   docker build -f Dockerfile.minimal -t moderne-connector:minimal .
    ```
 
-3. **Run**:
+3. **Run:**
    ```bash
    docker run -d \
      -p 8080:8080 \
-     -e MODERNE_AGENT_APIGATEWAYRSOCKETURI=https://api.<tenant>.moderne.io/rsocket \
-     -e MODERNE_AGENT_TOKEN=<your-agent-token> \
-     -e MODERNE_AGENT_CRYPTO_SYMMETRICKEY=<your-256-bit-hex-key> \
-     -e MODERNE_AGENT_NICKNAME=my-agent \
-     moderne-agent:minimal
+     -v "$(pwd)/application.yml:/app/application.yml:ro" \
+     moderne-connector:minimal
    ```
 
-## Repository Structure
+## Repository structure
 
 ```
 .
-├── Dockerfile                              # Production-grade agent container (downloads JAR)
-├── Dockerfile.minimal                      # Minimal agent container (expects local JAR)
-├── .env.example                            # Comprehensive configuration template
-├── README.md                               # This file
-└── grafana/                                # Grafana dashboard for monitoring
-    ├── README.md                           # Dashboard documentation
-    └── moderne-agent-dashboard-v1.json     # Pre-built dashboard
+├── Dockerfile              # Production-grade connector container (downloads JAR)
+├── Dockerfile.minimal      # Minimal connector container (expects local JAR)
+├── docker-compose.yml      # Quick-start compose definition
+├── application.yml.example # Comprehensive configuration template
+├── example-repos.csv       # Sample repos.csv for trial deployments
+└── README.md               # This file
 ```
 
 ## Resources
 
 - [Moderne Documentation](https://docs.moderne.io)
-- [Agent Configuration Guide](https://docs.moderne.io/administrator-documentation/moderne-platform/how-to-guides/agent-configuration/agent-configuration)
-- [Maven Central - Moderne Agent](https://central.sonatype.com/artifact/io.moderne/moderne-agent)
+- [Connector Configuration Guide](https://docs.moderne.io/administrator-documentation/moderne-platform/how-to-guides/connector-configuration/connector-configuration)
+- [Maven Central — Moderne Connector](https://central.sonatype.com/artifact/io.moderne/connector)
 - [Moderne Platform](https://www.moderne.io)
 
 ## Requirements
 
 - **CPU**: 2 cores minimum, 4+ recommended
-- **Memory**: 8GB minimum
-- **Storage**: 10GB minimum for LST caching (ephemeral)
-- **Network**: Outbound HTTPS access to Moderne API endpoint
-- **Java**: 17+ (provided in Docker image)
+- **Memory**: 8 GB minimum
+- **Storage**: 10 GB minimum for LST caching (ephemeral)
+- **Network**: outbound HTTPS access to the Moderne API endpoint
+- **Java**: 21+ (provided in the Docker image)
 
 ## Support
 
 For questions or issues:
 - [Moderne Documentation](https://docs.moderne.io)
 - Contact your Moderne representative
-- [GitHub Issues](https://github.com/moderneinc/moderne-agent-example/issues)
+- [GitHub Issues](https://github.com/moderneinc/connector-example/issues)

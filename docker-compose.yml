@@ -1,11 +1,10 @@
 services:
-  moderne-agent:
+  moderne-connector:
     build:
       context: .
     ports:
       - "8080:8080"
-    env_file:
-      - .env
     volumes:
+      - ./application.yml:/app/application.yml:ro
       - ./example-repos.csv:/app/repos.csv:ro
     restart: unless-stopped

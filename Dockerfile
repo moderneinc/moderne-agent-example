@@ -1,9 +1,9 @@
-FROM eclipse-temurin:17-jdk
+FROM eclipse-temurin:21-jdk
 RUN apt-get update && apt-get install -y libxml2-utils
 
-# Set the environment variable MODERNE_AGENT_VERSION
-ARG MODERNE_AGENT_VERSION
-ENV MODERNE_AGENT_VERSION=${MODERNE_AGENT_VERSION}
+# Set the environment variable MODERNE_CONNECTOR_VERSION
+ARG MODERNE_CONNECTOR_VERSION
+ENV MODERNE_CONNECTOR_VERSION=${MODERNE_CONNECTOR_VERSION}
 
 WORKDIR /app
 USER root
@@ -15,25 +15,28 @@ USER root
 RUN groupadd -r app && useradd --no-log-init -r -m -g app app && chown -R app:app /app
 USER app
 
-# Download the specified version of moderne-agent JAR file if MODERNE_AGENT_VERSION is provided,
-# otherwise download the latest version
-RUN  if [ -n "${MODERNE_AGENT_VERSION}" ]; then \
-          echo "Downloading version: ${MODERNE_AGENT_VERSION}"; \
-          curl -s --insecure --request GET --url "https://repo1.maven.org/maven2/io/moderne/moderne-agent/${MODERNE_AGENT_VERSION}/moderne-agent-${MODERNE_AGENT_VERSION}.jar" --output agent.jar; \
+# Download the specified version of moderne-connector JAR file if MODERNE_CONNECTOR_VERSION is provided,
+# otherwise download the latest version.
+RUN  if [ -n "${MODERNE_CONNECTOR_VERSION}" ]; then \
+          echo "Downloading version: ${MODERNE_CONNECTOR_VERSION}"; \
+          curl -s --insecure --request GET --url "https://repo1.maven.org/maven2/io/moderne/connector/${MODERNE_CONNECTOR_VERSION}/connector-${MODERNE_CONNECTOR_VERSION}.jar" --output connector.jar; \
      else \
-          LATEST_VERSION=$(curl -s --insecure --request GET --url "https://repo1.maven.org/maven2/io/moderne/moderne-agent/maven-metadata.xml" | xmllint --xpath 'string(/metadata/versioning/latest)' -); \
+          LATEST_VERSION=$(curl -s --insecure --request GET --url "https://repo1.maven.org/maven2/io/moderne/connector/maven-metadata.xml" | xmllint --xpath 'string(/metadata/versioning/latest)' -); \
           if [ -z "${LATEST_VERSION}" ]; then \
                echo "Failed to retrieve the latest version"; \
                exit 1; \
           fi; \
           echo "Downloading latest version: ${LATEST_VERSION}"; \
-          curl -s --insecure --request GET --url "https://repo1.maven.org/maven2/io/moderne/moderne-agent/${LATEST_VERSION}/moderne-agent-${LATEST_VERSION}.jar" --output agent.jar; \
+          curl -s --insecure --request GET --url "https://repo1.maven.org/maven2/io/moderne/connector/${LATEST_VERSION}/connector-${LATEST_VERSION}.jar" --output connector.jar; \
      fi
+
+EXPOSE 8080
 
 ENTRYPOINT ["java"]
 CMD ["-XX:-OmitStackTraceInFastThrow", \
      "-XX:MaxRAMPercentage=65.0", \
      "-XX:MaxDirectMemorySize=2G", \
      "-XX:+HeapDumpOnOutOfMemoryError", \
+     "-XX:+ExitOnOutOfMemoryError", \
      "-XX:+UseStringDeduplication", \
-     "-jar", "/app/agent.jar"]
+     "-jar", "/app/connector.jar"]
