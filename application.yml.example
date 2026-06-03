@@ -42,70 +42,21 @@ moderne:
     #    port: 8080
 
     # ========================================================================
-    # ORGANIZATION POLLING (Optional)
+    # ORGANIZATION POLLING CADENCE (Optional)
     # ========================================================================
-    # Where the connector discovers and downloads published LST artifacts.
+    # Connector-wide defaults for the LST discovery loop. The per-source poll
+    # repos (Artifactory / Maven) are NOT configured here -- they live under
+    # each source at moderne.organization.sources.{http,s3,file}[*].poll (see
+    # the ORGANIZATION SOURCES section below). A global poll block here fails
+    # fast at startup.
     organization:
-      # LST discovery mode: AUTO (infer), LOCK (use CSV publish URIs),
-      # POLLING (query repos).
-      #mode: AUTO
-
-      # How often to re-fetch and re-enrich repos.csv (ISO-8601 duration).
+      # How often the connector re-fetches each source's repos.csv and re-runs
+      # enrichment (ISO-8601 duration; default PT10M).
       #interval: PT10M
 
-      # Concurrent LST download/encrypt/upload operations across all sources.
-      # Default: max(4, available CPU cores).
+      # Global cap on concurrent LST download/encrypt/upload operations across
+      # all sources. Default: max(4, available CPU cores).
       #download-parallelism: 8
-
-      poll:
-        # ====================================================================
-        # ARTIFACTORY POLLING (Optional - recommended for LST storage)
-        # ====================================================================
-        #artifactory:
-        #  - uri: https://artifactory.mycompany.com/artifactory
-        #
-        #    # Use EITHER username/password OR bearer-token.
-        #    username: <artifactory-username>
-        #    password: <artifactory-password>
-        #    #bearer-token: <artifactory-token>
-        #
-        #    # AQL filter expressions that select LST artifacts.
-        #    lst-query-filters:
-        #      - '"repo":{"$match":"moderne-lsts"}'
-        #      - '"name":{"$match":"*-ast.jar"}'
-        #
-        #    # How often to re-poll (ISO-8601 duration; default PT10M).
-        #    interval: PT10M
-        #
-        #    # Per-source download concurrency override (defaults to global).
-        #    download-parallelism: 4
-        #
-        #    # Disable cert validation (only for self-signed certs / dev).
-        #    skip-ssl: false
-        #
-        #    # Skip startup connectivity validation (useful when debugging).
-        #    skip-validate-connectivity: false
-
-        # ====================================================================
-        # MAVEN POLLING (Optional - alt to Artifactory; also dependency source)
-        # ====================================================================
-        #maven:
-        #  - uri: https://artifactory.mycompany.com/artifactory/my-repository
-        #    username: <maven-username>
-        #    password: <maven-password>
-        #
-        #    # Local cache directory (defaults to ~/.moderne-maven).
-        #    local-repository: /app/.moderne-maven/maven0
-        #
-        #    # Include releases / snapshots (default: true).
-        #    releases: true
-        #    snapshots: true
-        #
-        #    # Poll interval (ISO-8601 duration; default PT10M).
-        #    interval: PT10M
-        #
-        #    skip-ssl: false
-        #    skip-validate-connectivity: false
 
     # ========================================================================
     # POM CACHE (Optional - improves recipe execution performance)
@@ -214,6 +165,11 @@ moderne:
   # ==========================================================================
   # The connector loads its repository list from one or more sources. Mix and
   # match HTTP, S3, and file-based sources. See README for repos.csv format.
+  #
+  # Each source may carry an optional `poll:` block listing the Artifactory
+  # and/or Maven repositories to query for that source's LST artifacts. Polling
+  # is configured per source (not globally) because the connector must know
+  # which source's repos.csv each poll relates to.
   #organization:
   #  sources:
   #    # HTTP-hosted repos.csv.
@@ -221,10 +177,51 @@ moderne:
   #      - uri: https://example.com/repos.csv
   #        username:
   #        password:
-  #        #token:
+  #        #bearer-token:
   #        #proxy:
   #        #  host:
   #        #  port:
+  #        # Encrypt LSTs in transit / at rest (default: true).
+  #        #encrypt: true
+  #        #skip-ssl: false
+  #        #skip-validate-connectivity: false
+  #
+  #        # ================================================================
+  #        # ARTIFACTORY / MAVEN POLLING for THIS source (Optional)
+  #        # ================================================================
+  #        #poll:
+  #        #  # Artifactory polling (recommended for LST storage).
+  #        #  artifactory:
+  #        #    - uri: https://artifactory.mycompany.com/artifactory
+  #        #      # Use EITHER username/password OR bearer-token.
+  #        #      username: <artifactory-username>
+  #        #      password: <artifactory-password>
+  #        #      #bearer-token: <artifactory-token>
+  #        #      # AQL filter expressions that select LST artifacts.
+  #        #      lst-query-filters:
+  #        #        - '"repo":{"$match":"moderne-lsts"}'
+  #        #        - '"name":{"$match":"*-ast.jar"}'
+  #        #      # How often to re-poll (ISO-8601 duration; default PT10M).
+  #        #      interval: PT10M
+  #        #      # Per-source download concurrency override (defaults to global).
+  #        #      download-parallelism: 4
+  #        #      skip-ssl: false
+  #        #      skip-validate-connectivity: false
+  #        #
+  #        #  # Maven polling (alt to Artifactory; also a dependency source).
+  #        #  maven:
+  #        #    - uri: https://artifactory.mycompany.com/artifactory/my-repository
+  #        #      username: <maven-username>
+  #        #      password: <maven-password>
+  #        #      # Local cache directory (defaults to ~/.moderne-maven).
+  #        #      local-repository: /app/.moderne-maven/maven0
+  #        #      # Include releases / snapshots (default: true).
+  #        #      releases: true
+  #        #      snapshots: true
+  #        #      # Poll interval (ISO-8601 duration; default PT10M).
+  #        #      interval: PT10M
+  #        #      skip-ssl: false
+  #        #      skip-validate-connectivity: false
   #
   #    # S3-hosted repos.csv (or repos-lock.csv).
   #    s3:
@@ -234,10 +231,14 @@ moderne:
   #        #access-key:
   #        #secret-key:
   #        #profile:
+  #        #encrypt: true
+  #        # A `poll:` block (same shape as the http example above) is valid here too.
   #
   #    # File-mounted repos.csv (path relative to the connector's storage dir).
   #    file:
   #      - path: repos.csv
+  #        #encrypt: true
+  #        # A `poll:` block (same shape as the http example above) is valid here too.
 
   # ==========================================================================
   # RECIPE MARKETPLACE (Optional)
