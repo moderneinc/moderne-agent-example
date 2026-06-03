@@ -59,9 +59,9 @@ Edit `application.yml` and configure at minimum:
 - Bitbucket Cloud: `moderne.scm.bitbucket-cloud`
 - Azure DevOps: `moderne.scm.azure-devops`
 
-**Artifact repository** — where LSTs are stored:
-- Artifactory: `moderne.connector.organization.poll.artifactory` (recommended)
-- Maven: `moderne.connector.organization.poll.maven`
+**Artifact repository** — where LSTs are stored. Configured per source under `moderne.organization.sources.{http,s3,file}[*].poll`:
+- Artifactory: `...poll.artifactory` (recommended)
+- Maven: `...poll.maven`
 
 See `application.yml.example` for all available options with detailed comments.
 
@@ -219,7 +219,7 @@ docker run -d -p 8081:8080 \
 - Verify artifact repository configuration (Artifactory or Maven)
 - For Artifactory: check the `lst-query-filters` AQL expressions
 - For Maven: ensure repository indexing has completed
-- Tune polling cadence with `moderne.connector.organization.poll.*.interval`
+- Tune polling cadence per source with `...poll.artifactory[*].interval` / `...poll.maven[*].interval`, or set the connector-wide default `moderne.connector.organization.interval`
 - Verify LSTs are actually published to the configured repository
 
 ### Debugging connectivity issues
@@ -228,12 +228,14 @@ Set `skip-validate-connectivity: true` on a specific source (Artifactory, Maven,
 
 ```yaml
 moderne:
-  connector:
-    organization:
-      poll:
-        artifactory:
-          - uri: https://artifactory.mycompany.com/artifactory
-            skip-validate-connectivity: true
+  organization:
+    sources:
+      http:
+        - uri: https://example.com/repos.csv
+          poll:
+            artifactory:
+              - uri: https://artifactory.mycompany.com/artifactory
+                skip-validate-connectivity: true
 ```
 
 To enable verbose logging:
@@ -259,8 +261,6 @@ If you previously ran the Moderne Agent, the connector will automatically transl
 | `moderne.agent.bitbucket[*]`              | `moderne.scm.bitbucket-datacenter[*]`                |
 | `moderne.agent.bitbucket-cloud`           | `moderne.scm.bitbucket-cloud`                        |
 | `moderne.agent.azure-dev-ops[*]`          | `moderne.scm.azure-devops[*]`                        |
-| `moderne.agent.artifactory[*]`            | `moderne.connector.organization.poll.artifactory[*]` |
-| `moderne.agent.maven[*]`                  | `moderne.connector.organization.poll.maven[*]`       |
 | `moderne.agent.pypi[*]`                   | `moderne.recipe.marketplace.repositories.pypi[*]`    |
 | `moderne.agent.organization.repos-csv`    | `moderne.organization.sources.http[0].uri`           |
 | `moderne.agent.s3[*]`                     | `moderne.organization.sources.s3[*]`                 |
@@ -271,6 +271,8 @@ If you previously ran the Moderne Agent, the connector will automatically transl
 | `moderne.agent.ui.*`                      | `moderne.ui.*`                                       |
 | `moderne.agent.personal-access-tokens.*`  | `moderne.authorization.access-tokens.*`              |
 | `moderne.agent.llm.*`                     | `moderne.moddy.<provider>.*`                         |
+
+**Not auto-migrated:** legacy `moderne.agent.artifactory[*]` and `moderne.agent.maven[*]` pollers cannot be translated automatically, because the connector cannot know which source's repos.csv each poller relates to. The connector fails fast at startup if it finds them. Move each entry manually under the source it polls, at `moderne.organization.sources.{http,s3,file}[*].poll.{artifactory,maven}[*]`.
 
 Field renames applied during migration:
 - `.url` → `.uri`
