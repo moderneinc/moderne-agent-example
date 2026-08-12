@@ -2,9 +2,22 @@ services:
   moderne-connector:
     build:
       context: .
+      # The connector JAR is pulled from the Code Genome Project during the build, which
+      # requires the Moderne-supplied username and download token. Export CGP_USERNAME and
+      # CGP_PASSWORD before `docker compose build`, or swap the `environment:` sources below
+      # for `file: ./cgp_username` / `file: ./cgp_password`.
+      secrets:
+        - cgp_username
+        - cgp_password
     ports:
       - "8080:8080"
     volumes:
       - ./application.yml:/app/application.yml:ro
       - ./example-repos.csv:/app/repos.csv:ro
     restart: unless-stopped
+
+secrets:
+  cgp_username:
+    environment: CGP_USERNAME
+  cgp_password:
+    environment: CGP_PASSWORD
