@@ -28,46 +28,27 @@ The connector is the successor to the legacy Moderne Agent. It uses a hierarchic
 
    **Important:** keep this key stable. Changing it makes LSTs encrypted with the old key unreadable.
 
-3. **Code Genome Project credentials** — the username and download token Moderne issued you for
-   [`artifacts.codegenomeproject.org`](https://docs.moderne.io/administrator-documentation/moderne-platform/how-to-guides/accessing-the-code-genome-project/).
-   The connector JAR is a proprietary artifact, so the token must carry the `customer`
-   entitlement. See [Artifact source](#artifact-source) below.
-
 The production `Dockerfile` automatically downloads the connector JAR from the Code Genome Project during the build. For a minimal reference implementation, see [Minimum Docker image](#minimum-docker-image).
 
 ## Artifact source
 
 The connector is published to the Code Genome Project (CGP) Maven repository at
-`https://artifacts.codegenomeproject.org/maven`, under the coordinates
-`io.moderne:connector`. Every download from it is authenticated: use your Moderne-supplied
-username with the download token as the password (the token also works as a bearer token, and
-any username is accepted alongside it).
+`https://artifacts.codegenomeproject.org/maven`, under the coordinates `io.moderne:connector`.
+The repository is readable anonymously, so no credentials are needed to build the image.
 
-Export the credentials before building; both the `Dockerfile` and `docker-compose.yml` read them
-as BuildKit secrets, which keeps them out of the image layers and out of `docker history`:
-
-```bash
-export CGP_USERNAME='you@example.com'
-export CGP_PASSWORD='<download token>'
-```
-
-| Build argument            | Default                                        | Purpose                                                        |
-| ------------------------- | ---------------------------------------------- | -------------------------------------------------------------- |
-| `MODERNE_ARTIFACT_REPO`   | `https://artifacts.codegenomeproject.org/maven` | Repository the connector JAR is resolved from                   |
-| `MODERNE_CONNECTOR_VERSION` | *(latest release)*                            | Pin a version instead of resolving `<release>` from the metadata |
+| Build argument              | Default                                         | Purpose                                                          |
+| --------------------------- | ----------------------------------------------- | ---------------------------------------------------------------- |
+| `MODERNE_ARTIFACT_REPO`     | `https://artifacts.codegenomeproject.org/maven`  | Repository the connector JAR is resolved from                     |
+| `MODERNE_CONNECTOR_VERSION` | *(latest release)*                              | Pin a version instead of resolving `<release>` from the metadata  |
 
 If your build hosts have no egress, mirror `io.moderne:connector` into your own repository
-manager and point `MODERNE_ARTIFACT_REPO` at it — the layout is a plain Maven 2 layout, so
+manager and point `MODERNE_ARTIFACT_REPO` at it. The layout is a plain Maven 2 layout, so
 nothing else changes. Moderne recommends placing CGP below your internal repositories and above
-Maven Central in a virtual repository. When the mirror allows anonymous reads, omit the secrets
-entirely:
+Maven Central in a virtual repository.
 
 ```bash
 docker build --build-arg MODERNE_ARTIFACT_REPO=https://nexus.internal/repository/moderne -t moderne-connector .
 ```
-
-Common failures: **401** means the credentials are missing, wrong, or revoked; **403** means they
-authenticated but lack the `customer` entitlement the connector requires.
 
 ## Configuration
 
@@ -106,21 +87,18 @@ See `application.yml.example` for all available options with detailed comments.
 
 ### Step 2: Build the Docker image
 
-The build pulls the connector JAR from the Code Genome Project, so pass your CGP credentials as
-BuildKit secrets (see [Artifact source](#artifact-source)):
+The build pulls the connector JAR from the Code Genome Project, which needs no credentials
+(see [Artifact source](#artifact-source)):
 
 ```bash
-export CGP_USERNAME='you@example.com'
-export CGP_PASSWORD='<download token>'
-
-docker build \
-  --secret id=cgp_username,env=CGP_USERNAME \
-  --secret id=cgp_password,env=CGP_PASSWORD \
-  -t moderne-connector .
+docker build -t moderne-connector .
 ```
 
-On buildx older than v0.13, write the values to files and use `src=` instead of `env=`:
-`--secret id=cgp_username,src=./cgp_username`.
+To pin a version instead of taking the latest release:
+
+```bash
+docker build --build-arg MODERNE_CONNECTOR_VERSION=0.151.45 -t moderne-connector .
+```
 
 ### Step 3: Run the connector
 
@@ -132,8 +110,7 @@ docker run -d \
   moderne-connector
 ```
 
-Or use the provided `docker-compose.yml`, which passes the same credentials through as build
-secrets (so `CGP_USERNAME` / `CGP_PASSWORD` must be exported in your shell):
+Or use the provided `docker-compose.yml`:
 
 ```bash
 docker compose up -d
@@ -342,8 +319,9 @@ Properties no longer supported (warned, then ignored): `moderne.agent.organizati
 1. **Manually download the connector JAR** from the Code Genome Project:
    ```bash
    # Replace VERSION with the version you want; browse the available ones at
-   # https://artifacts.codegenomeproject.org/maven/io/moderne/connector/
-   curl -u "$CGP_USERNAME:$CGP_PASSWORD" -o connector-VERSION.jar \
+   # https://artifacts.codegenomeproject.org/maven/io/moderne/connector/maven-metadata.xml
+   # -L is required: the repository redirects artifact requests to a CDN
+   curl -fLo connector-VERSION.jar \
      https://artifacts.codegenomeproject.org/maven/io/moderne/connector/VERSION/connector-VERSION.jar
    ```
 
@@ -377,7 +355,7 @@ Properties no longer supported (warned, then ignored): `moderne.agent.organizati
 - [Moderne Documentation](https://docs.moderne.io)
 - [Connector Configuration Guide](https://docs.moderne.io/administrator-documentation/moderne-platform/how-to-guides/connector-configuration/connector-configuration)
 - [Accessing the Code Genome Project](https://docs.moderne.io/administrator-documentation/moderne-platform/how-to-guides/accessing-the-code-genome-project/)
-- [Code Genome Project — Moderne Connector](https://artifacts.codegenomeproject.org/maven/io/moderne/connector/)
+- [Code Genome Project (connector JARs)](https://artifacts.codegenomeproject.org/maven/io/moderne/connector/maven-metadata.xml)
 - [Moderne Platform](https://www.moderne.io)
 
 ## Requirements

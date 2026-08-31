@@ -17,38 +17,19 @@ USER root
 # RUN /opt/java/openjdk/bin/keytool -import -trustcacerts -keystore /opt/java/openjdk/lib/security/cacerts -storepass changeit -noprompt -alias moderne-cert -file moderne_cert.der
 
 # Download the specified version of the moderne-connector JAR file if MODERNE_CONNECTOR_VERSION
-# is provided, otherwise the latest release.
-#
-# CGP is credentialed — the connector is a proprietary artifact, so the Moderne-supplied
-# username and download token must carry the `customer` entitlement. Pass them as BuildKit
-# secrets so they stay out of the image layers and out of `docker history`:
-#
-#   docker build \
-#     --secret id=cgp_username,env=CGP_USERNAME \
-#     --secret id=cgp_password,env=CGP_PASSWORD \
-#     -t moderne-connector .
-#
-# (`src=<file>` works in place of `env=` on older buildx.) Omit both secrets only when
-# MODERNE_ARTIFACT_REPO points at a mirror that allows anonymous reads.
-RUN --mount=type=secret,id=cgp_username --mount=type=secret,id=cgp_password \
-     set -e; \
-     CGP_USERNAME="$(cat /run/secrets/cgp_username 2>/dev/null || true)"; \
-     CGP_PASSWORD="$(cat /run/secrets/cgp_password 2>/dev/null || true)"; \
-     if [ -n "${CGP_USERNAME}" ] || [ -n "${CGP_PASSWORD}" ]; then \
-          set -- --user "${CGP_USERNAME}:${CGP_PASSWORD}"; \
-     else \
-          set --; \
-     fi; \
+# is provided, otherwise the latest release. The repository is readable anonymously; -L is
+# required because artifact requests redirect to a CDN.
+RUN set -e; \
      VERSION="${MODERNE_CONNECTOR_VERSION}"; \
      if [ -z "${VERSION}" ]; then \
-          VERSION=$(curl -fsSL "$@" "${MODERNE_ARTIFACT_REPO}/io/moderne/connector/maven-metadata.xml" | xmllint --xpath 'string(/metadata/versioning/release)' -); \
+          VERSION=$(curl -fsSL "${MODERNE_ARTIFACT_REPO}/io/moderne/connector/maven-metadata.xml" | xmllint --xpath 'string(/metadata/versioning/release)' -) || true; \
           if [ -z "${VERSION}" ]; then \
                echo "Failed to retrieve the latest release version from ${MODERNE_ARTIFACT_REPO}; pass --build-arg MODERNE_CONNECTOR_VERSION=<version> to pin one"; \
                exit 1; \
           fi; \
      fi; \
      echo "Downloading connector ${VERSION} from ${MODERNE_ARTIFACT_REPO}"; \
-     curl -fsSL "$@" -o connector.jar "${MODERNE_ARTIFACT_REPO}/io/moderne/connector/${VERSION}/connector-${VERSION}.jar"
+     curl -fsSL -o connector.jar "${MODERNE_ARTIFACT_REPO}/io/moderne/connector/${VERSION}/connector-${VERSION}.jar"
 
 RUN groupadd -r app && useradd --no-log-init -r -m -g app app && chown -R app:app /app
 USER app
