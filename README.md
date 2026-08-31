@@ -28,7 +28,27 @@ The connector is the successor to the legacy Moderne Agent. It uses a hierarchic
 
    **Important:** keep this key stable. Changing it makes LSTs encrypted with the old key unreadable.
 
-The production `Dockerfile` automatically downloads the connector JAR from Maven Central during the build. For a minimal reference implementation, see [Minimum Docker image](#minimum-docker-image).
+The production `Dockerfile` automatically downloads the connector JAR from the Code Genome Project during the build. For a minimal reference implementation, see [Minimum Docker image](#minimum-docker-image).
+
+## Artifact source
+
+The connector is published to the Code Genome Project (CGP) Maven repository at
+`https://artifacts.codegenomeproject.org/maven`, under the coordinates `io.moderne:connector`.
+The repository is readable anonymously, so no credentials are needed to build the image.
+
+| Build argument              | Default                                         | Purpose                                                          |
+| --------------------------- | ----------------------------------------------- | ---------------------------------------------------------------- |
+| `MODERNE_ARTIFACT_REPO`     | `https://artifacts.codegenomeproject.org/maven`  | Repository the connector JAR is resolved from                     |
+| `MODERNE_CONNECTOR_VERSION` | *(latest release)*                              | Pin a version instead of resolving `<release>` from the metadata  |
+
+If your build hosts have no egress, mirror `io.moderne:connector` into your own repository
+manager and point `MODERNE_ARTIFACT_REPO` at it. The layout is a plain Maven 2 layout, so
+nothing else changes. Moderne recommends placing CGP below your internal repositories and above
+Maven Central in a virtual repository.
+
+```bash
+docker build --build-arg MODERNE_ARTIFACT_REPO=https://nexus.internal/repository/moderne -t moderne-connector .
+```
 
 ## Configuration
 
@@ -67,8 +87,17 @@ See `application.yml.example` for all available options with detailed comments.
 
 ### Step 2: Build the Docker image
 
+The build pulls the connector JAR from the Code Genome Project, which needs no credentials
+(see [Artifact source](#artifact-source)):
+
 ```bash
 docker build -t moderne-connector .
+```
+
+To pin a version instead of taking the latest release:
+
+```bash
+docker build --build-arg MODERNE_CONNECTOR_VERSION=0.151.45 -t moderne-connector .
 ```
 
 ### Step 3: Run the connector
@@ -287,11 +316,13 @@ Properties no longer supported (warned, then ignored): `moderne.agent.organizati
 
 **To use the minimal Dockerfile:**
 
-1. **Manually download the connector JAR** from [Maven Central](https://central.sonatype.com/artifact/io.moderne/connector):
+1. **Manually download the connector JAR** from the Code Genome Project:
    ```bash
-   # Replace VERSION with the latest version number
-   curl -o connector-VERSION.jar \
-     https://repo1.maven.org/maven2/io/moderne/connector/VERSION/connector-VERSION.jar
+   # Replace VERSION with the version you want; browse the available ones at
+   # https://artifacts.codegenomeproject.org/maven/io/moderne/connector/maven-metadata.xml
+   # -L is required: the repository redirects artifact requests to a CDN
+   curl -fLo connector-VERSION.jar \
+     https://artifacts.codegenomeproject.org/maven/io/moderne/connector/VERSION/connector-VERSION.jar
    ```
 
 2. **Build:**
@@ -323,7 +354,8 @@ Properties no longer supported (warned, then ignored): `moderne.agent.organizati
 
 - [Moderne Documentation](https://docs.moderne.io)
 - [Connector Configuration Guide](https://docs.moderne.io/administrator-documentation/moderne-platform/how-to-guides/connector-configuration/connector-configuration)
-- [Maven Central — Moderne Connector](https://central.sonatype.com/artifact/io.moderne/connector)
+- [Accessing the Code Genome Project](https://docs.moderne.io/administrator-documentation/moderne-platform/how-to-guides/accessing-the-code-genome-project/)
+- [Code Genome Project (connector JARs)](https://artifacts.codegenomeproject.org/maven/io/moderne/connector/maven-metadata.xml)
 - [Moderne Platform](https://www.moderne.io)
 
 ## Requirements

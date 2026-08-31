@@ -2,6 +2,12 @@ services:
   moderne-connector:
     build:
       context: .
+      # The connector JAR is pulled from the Code Genome Project during the build, which is
+      # readable anonymously. Uncomment the args below to resolve it from an internal mirror
+      # or to pin a version.
+      # args:
+      #   MODERNE_ARTIFACT_REPO: https://nexus.internal/repository/moderne
+      #   MODERNE_CONNECTOR_VERSION: 0.151.45
     ports:
       - "8080:8080"
     volumes:
